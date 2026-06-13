@@ -91,7 +91,8 @@
         <summary>その他の項目（任意）</summary>
         <label>カテゴリ<select id="f_cat"></select></label>
         <label>原価(円)<input id="f_price" type="number" inputmode="numeric" value="0" /></label>
-        <label>在庫切れしきい値<input id="f_threshold" type="number" inputmode="numeric" value="0" /></label>
+        <label id="lbl_threshold">在庫切れしきい値<input id="f_threshold" type="number" inputmode="numeric" value="0" /></label>
+        <p id="thNote" class="muted hidden">在庫切れ間近は「登録時の数量の15%」を下回ると自動で判定します。</p>
       </details>
       <div class="modal-actions">
         <button id="deleteBtn" class="btn danger hidden">削除</button>

@@ -202,6 +202,13 @@ function filteredItems() {
 function isLow(i) { return Number(i.しきい値) > 0 && Number(i.在庫数量) <= Number(i.しきい値); }
 
 function render() {
+  // 「すべて」タブはカテゴリ別の合算サマリー、拠点タブは明細
+  if (STATE.filterLoc) renderDetail();
+  else renderSummary();
+}
+
+// 拠点を選んでいるときの明細表示（入出庫・編集が可能）
+function renderDetail() {
   const items = filteredItems();
   const list = $('#list');
 
@@ -239,6 +246,80 @@ function render() {
       <button class="card-menu" onclick="openAction('${i.id}')">⋯</button>
     </div>`;
   }).join('');
+}
+
+// 「すべて」タブ: 商品名で拠点をまたいで合算し、カテゴリ別に集計表示（閲覧専用）
+function renderSummary() {
+  const list = $('#list');
+  // 場所以外のフィルタ（カテゴリ・検索）を適用
+  const base = STATE.items.filter(i => {
+    if (STATE.category && i.カテゴリ !== STATE.category) return false;
+    if (STATE.search && !String(i.商品名).toLowerCase().includes(STATE.search.toLowerCase())) return false;
+    return true;
+  });
+
+  // 商品名で合算
+  const map = {};
+  base.forEach(i => {
+    const k = i.商品名;
+    if (!map[k]) map[k] = { 商品名: i.商品名, カテゴリ: i.カテゴリ || '未分類', 単位: i.単位, total: 0, th: 0, locs: {} };
+    map[k].total += Number(i.在庫数量) || 0;
+    map[k].th += Number(i.しきい値) || 0;
+    map[k].locs[i.保管場所] = (map[k].locs[i.保管場所] || 0) + (Number(i.在庫数量) || 0);
+  });
+  const lowOf = p => p.th > 0 && p.total <= p.th;
+  let products = Object.values(map);
+  if (STATE.onlyLow) products = products.filter(lowOf);
+
+  const lowCount = Object.values(map).filter(lowOf).length;
+  $('#summary').textContent =
+    `全拠点の合算 ・ ${products.length} 品目` +
+    (lowCount ? ` ・ 在庫切れ間近 ${lowCount} 品目` : '');
+
+  if (!products.length) {
+    list.innerHTML = '<div class="empty">該当する商品がありません</div>';
+    return;
+  }
+
+  // カテゴリ順（CATEGORIES の並び→その他）でグループ化
+  const catOrder = [...STATE.categories, '未分類'];
+  const groups = {};
+  products.forEach(p => { (groups[p.カテゴリ] = groups[p.カテゴリ] || []).push(p); });
+  const cats = Object.keys(groups).sort((a, b) => {
+    const ia = catOrder.indexOf(a), ib = catOrder.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
+  let html = '';
+  cats.forEach(cat => {
+    const ps = groups[cat].sort((a, b) => a.商品名.localeCompare(b.商品名, 'ja'));
+    // カテゴリ内で単位が揃っていれば合計値を見出しに出す
+    const units = [...new Set(ps.map(p => p.単位))];
+    const catTotal = units.length === 1
+      ? `計 ${ps.reduce((s, p) => s + p.total, 0)} ${units[0]}` : '';
+    html += `<div class="cat-header"><span>${esc(cat)}</span><span class="cat-total">${catTotal}</span></div>`;
+    html += ps.map(p => {
+      const low = lowOf(p);
+      const breakdown = STATE.locations
+        .filter(l => p.locs[l] != null)
+        .map(l => `${esc(l)} ${p.locs[l]}`).join('・');
+      return `
+      <div class="card ${low ? 'low' : ''}">
+        <div class="card-main">
+          <div class="card-name">${esc(p.商品名)}</div>
+          <div class="card-meta">
+            ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
+          </div>
+          <div class="card-sub"><span class="loc-break">${breakdown || '在庫なし'}</span></div>
+        </div>
+        <div class="qty-box">
+          <div class="qty-num ${low ? 'low' : ''}">${p.total}<span class="unit">${esc(p.単位)}</span></div>
+          <div class="qty-label">合計</div>
+        </div>
+      </div>`;
+    }).join('');
+  });
+  list.innerHTML = html;
 }
 
 // ---- クイック入出庫 (±1) ----
@@ -301,6 +382,9 @@ function openAdd() {
   $('#f_cat').value = STATE.category || '';
   $('#f_price').value = 0;
   $('#f_threshold').value = 0;
+  // 新規追加はしきい値を自動(15%)にするので入力欄は隠し、注記を出す
+  $('#lbl_threshold').classList.add('hidden');
+  $('#thNote').classList.remove('hidden');
   $('#moreFields').open = false; // 新規追加時は「その他」を畳んでおく
   showModal('editModal');
 }
@@ -321,6 +405,9 @@ function openEdit(id) {
   $('#f_cat').value = i.カテゴリ || '';
   $('#f_price').value = i.原価;
   $('#f_threshold').value = i.しきい値;
+  // 編集時はしきい値を手動調整できるよう表示
+  $('#lbl_threshold').classList.remove('hidden');
+  $('#thNote').classList.add('hidden');
   $('#moreFields').open = true; // 編集時は既存の値が見えるように開いておく
   showModal('editModal');
 }

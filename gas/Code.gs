@@ -13,6 +13,7 @@ const MASTER_SHEET = '商品マスタ';
 const LOCATIONS = ['学大', '笹塚', '田村', 'Graz'];
 const CATEGORIES = ['抹茶', 'ほうじ茶パウダー', '煎茶', 'ほうじ茶', '和紅茶', '玄米茶'];
 const UNITS = ['個', 'g', 'kg', '本', '袋', '箱'];
+const LOW_RATIO = 0.15; // 在庫切れ間近の判定: 登録時数量のこの割合を下回ると間近
 const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', 'しきい値', '更新日時'];
 const MASTER_HEADERS = ['商品名', 'カテゴリ', '単位', '標準原価'];
 
@@ -197,15 +198,19 @@ function listItems() {
 function addItem(item) {
   const sheet = getSheet();
   const id = Utilities.getUuid();
+  const qty = Number(item.在庫数量) || 0;
+  // しきい値が指定されていなければ、登録時数量の15%を自動設定
+  let threshold = Number(item.しきい値) || 0;
+  if (threshold <= 0) threshold = Math.ceil(qty * LOW_RATIO);
   sheet.appendRow([
     id,
     item.商品名 || '',
     item.カテゴリ || '',
     item.保管場所 || '',
-    Number(item.在庫数量) || 0,
+    qty,
     item.単位 || '個',
     Number(item.原価) || 0,
-    Number(item.しきい値) || 0,
+    threshold,
     new Date()
   ]);
   ensureProduct(item.商品名, item.カテゴリ, item.単位, item.原価); // マスタに無ければ登録

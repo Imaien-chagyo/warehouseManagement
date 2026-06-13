@@ -166,6 +166,19 @@ html, body {
 
 .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
 
+/* ===== カテゴリ見出し（すべて集計ビュー） ===== */
+.cat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 16px 2px 2px;
+  font-weight: 700;
+  color: var(--green-dark);
+}
+.cat-header:first-child { margin-top: 4px; }
+.cat-header .cat-total { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.card-sub .loc-break { color: var(--muted); }
+
 /* ===== FAB ===== */
 .fab {
   position: fixed;
@@ -272,9 +285,9 @@ html, body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ===== 在庫量＋単位 ===== */
-.qty-row { display: flex; gap: 8px; margin-top: 4px; }
-.qty-row input { flex: 1; min-width: 0; }
-.qty-row select { width: 90px; flex: 0 0 auto; }
+.qty-row { display: flex; gap: 8px; margin-top: 4px; align-items: stretch; }
+.qty-row input { flex: 1 1 auto; width: auto; min-width: 0; }
+.qty-row select { flex: 0 0 72px; width: 72px; }
 
 /* ===== その他の項目(折りたたみ) ===== */
 .more { margin-bottom: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
