@@ -8,6 +8,7 @@ let STATE = {
   locations: [],
   categories: [],
   units: [],
+  products: [],
   filterLoc: '',   // '' = すべて
   search: '',
   category: '',
@@ -75,10 +76,12 @@ function onLoaded(data) {
   STATE.locations = data.locations || [];
   STATE.categories = data.categories || [];
   STATE.units = data.units || [];
+  STATE.products = data.products || [];
   buildLocTabs();
   buildCategoryOptions();
   buildLocationSelects();
   buildUnitSelect();
+  buildProductSelect();
   render();
 }
 
@@ -112,6 +115,37 @@ function buildLocationSelects() {
 
 function buildUnitSelect() {
   $('#f_unit').innerHTML = STATE.units.map(u => `<option value="${u}">${u}</option>`).join('');
+}
+
+function buildProductSelect() {
+  const opts = STATE.products
+    .map(p => `<option value="${esc(p.商品名)}">${esc(p.商品名)}</option>`).join('');
+  $('#f_product').innerHTML =
+    '<option value="">商品を選択…</option>' +
+    opts +
+    '<option value="__new__">＋ 新しい商品を登録…</option>';
+}
+
+// 商品プルダウンの選択に応じて、新規入力欄の表示と既定値の自動入力を切り替え
+function onProductChange() {
+  const v = $('#f_product').value;
+  if (v === '__new__') {
+    $('#lbl_name').classList.remove('hidden');
+    $('#f_name').value = '';
+    $('#moreFields').open = true; // 新商品はカテゴリ等を入力してもらう
+  } else if (v) {
+    $('#lbl_name').classList.add('hidden');
+    $('#f_name').value = v;
+    const p = STATE.products.find(x => x.商品名 === v);
+    if (p) { // マスタの既定値を自動入力
+      $('#f_cat').value = p.カテゴリ || '';
+      $('#f_unit').value = p.単位 || STATE.units[0] || '個';
+      $('#f_price').value = p.標準原価 || 0;
+    }
+  } else {
+    $('#lbl_name').classList.add('hidden');
+    $('#f_name').value = '';
+  }
 }
 
 // ---- 一覧描画 ----
@@ -216,6 +250,10 @@ function openAdd() {
   STATE.editingId = null;
   $('#editTitle').textContent = '新規追加';
   $('#deleteBtn').classList.add('hidden');
+  // 新規追加は商品マスタから選択する
+  $('#lbl_product').classList.remove('hidden');
+  $('#lbl_name').classList.add('hidden');
+  $('#f_product').value = '';
   $('#f_name').value = '';
   $('#f_loc').value = STATE.filterLoc || STATE.locations[0] || '';
   $('#f_qty').value = 0;
@@ -233,6 +271,9 @@ function openEdit(id) {
   STATE.editingId = id;
   $('#editTitle').textContent = '編集';
   $('#deleteBtn').classList.remove('hidden');
+  // 編集時は商品名を直接編集（マスタ選択は隠す）
+  $('#lbl_product').classList.add('hidden');
+  $('#lbl_name').classList.remove('hidden');
   $('#f_name').value = i.商品名;
   $('#f_loc').value = i.保管場所;
   $('#f_qty').value = i.在庫数量;
@@ -351,6 +392,7 @@ function init() {
     $$('#adjustMode button').forEach(x => x.classList.toggle('active', x === b));
   });
 
+  $('#f_product').onchange = onProductChange;
   $('#saveBtn').onclick = save;
   $('#deleteBtn').onclick = removeItem;
   $('#moveOk').onclick = confirmMove;

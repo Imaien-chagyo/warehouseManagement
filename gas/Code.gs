@@ -9,10 +9,12 @@
 
 // ===== 設定 =====
 const SHEET_NAME = '在庫';
+const MASTER_SHEET = '商品マスタ';
 const LOCATIONS = ['学大', '笹塚', '田村', 'Graz'];
 const CATEGORIES = ['抹茶', 'ほうじ茶パウダー', '煎茶', 'ほうじ茶', '和紅茶', '玄米茶'];
 const UNITS = ['個', 'g', 'kg', '本', '袋', '箱'];
 const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', 'しきい値', '更新日時'];
+const MASTER_HEADERS = ['商品名', 'カテゴリ', '単位', '標準原価'];
 
 // 共有パスワード。デプロイ前に必ず変更してください。
 // （ログイン画面で入力した値とここが一致すれば操作OK）
@@ -45,6 +47,8 @@ function doPost(e) {
       case 'adjust': result = adjustQty(req.id, Number(req.delta)); break; // 入庫(+)/出庫(-)
       case 'move':   result = moveItem(req); break;                        // 拠点間移動
       case 'meta':   result = meta(); break;
+      case 'saveProduct':   result = saveProduct(req.product); break;      // 商品マスタ 追加/更新
+      case 'deleteProduct': result = deleteProduct(req.商品名); break;     // 商品マスタ 削除
       default:       return json({ ok: false, error: '不明な操作: ' + req.action });
     }
     return json({ ok: true, data: result });
@@ -108,13 +112,86 @@ function findRowIndexById(sheet, id) {
   return -1;
 }
 
+// ===== 商品マスタ =====
+function getMasterSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(MASTER_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(MASTER_SHEET);
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(MASTER_HEADERS);
+    sheet.setFrozenRows(1);
+  } else {
+    const head = sheet.getRange(1, 1, 1, MASTER_HEADERS.length).getValues()[0];
+    if (head.join('|') !== MASTER_HEADERS.join('|')) {
+      sheet.getRange(1, 1, 1, MASTER_HEADERS.length).setValues([MASTER_HEADERS]);
+      sheet.setFrozenRows(1);
+    }
+  }
+  return sheet;
+}
+
+function readProducts() {
+  const sheet = getMasterSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, MASTER_HEADERS.length).getValues()
+    .filter(r => r[0])
+    .map(r => ({ 商品名: r[0], カテゴリ: r[1], 単位: r[2] || '個', 標準原価: Number(r[3]) || 0 }));
+}
+
+function findMasterRow(sheet, name) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  const names = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < names.length; i++) {
+    if (String(names[i][0]) === String(name)) return i + 2;
+  }
+  return -1;
+}
+
+// 在庫追加時に呼ぶ。マスタに無ければ既定値付きで登録（既存は変更しない）。
+function ensureProduct(name, cat, unit, cost) {
+  if (!name) return;
+  const sheet = getMasterSheet();
+  if (findMasterRow(sheet, name) < 0) {
+    sheet.appendRow([name, cat || '', unit || '個', Number(cost) || 0]);
+  }
+}
+
+// マスタの追加/更新（既存なら上書き）
+function saveProduct(p) {
+  if (!p || !p.商品名) throw new Error('商品名が必要です');
+  const sheet = getMasterSheet();
+  const row = [p.商品名, p.カテゴリ || '', p.単位 || '個', Number(p.標準原価) || 0];
+  const r = findMasterRow(sheet, p.商品名);
+  if (r < 0) sheet.appendRow(row);
+  else sheet.getRange(r, 1, 1, MASTER_HEADERS.length).setValues([row]);
+  return { 商品名: p.商品名 };
+}
+
+function deleteProduct(name) {
+  const sheet = getMasterSheet();
+  const r = findMasterRow(sheet, name);
+  if (r < 0) throw new Error('対象が見つかりません');
+  sheet.deleteRow(r);
+  return { 商品名: name };
+}
+
 // ===== 各操作 =====
 function meta() {
-  return { locations: LOCATIONS, categories: CATEGORIES, units: UNITS };
+  return { locations: LOCATIONS, categories: CATEGORIES, units: UNITS, products: readProducts() };
 }
 
 function listItems() {
-  return { items: readAll(), locations: LOCATIONS, categories: CATEGORIES, units: UNITS };
+  return {
+    items: readAll(),
+    locations: LOCATIONS,
+    categories: CATEGORIES,
+    units: UNITS,
+    products: readProducts()
+  };
 }
 
 function addItem(item) {
@@ -131,6 +208,7 @@ function addItem(item) {
     Number(item.しきい値) || 0,
     new Date()
   ]);
+  ensureProduct(item.商品名, item.カテゴリ, item.単位, item.原価); // マスタに無ければ登録
   return { id: id };
 }
 
