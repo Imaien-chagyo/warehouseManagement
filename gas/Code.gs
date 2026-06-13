@@ -10,7 +10,9 @@
 // ===== 設定 =====
 const SHEET_NAME = '在庫';
 const LOCATIONS = ['学大', '笹塚', '田村', 'Graz'];
-const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単価', 'しきい値', '更新日時'];
+const CATEGORIES = ['抹茶', 'ほうじ茶パウダー', '煎茶', 'ほうじ茶', '和紅茶', '玄米茶'];
+const UNITS = ['個', 'g', 'kg', '本', '袋', '箱'];
+const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', 'しきい値', '更新日時'];
 
 // 共有パスワード。デプロイ前に必ず変更してください。
 // （ログイン画面で入力した値とここが一致すれば操作OK）
@@ -42,7 +44,7 @@ function doPost(e) {
       case 'delete': result = deleteItem(req.id); break;
       case 'adjust': result = adjustQty(req.id, Number(req.delta)); break; // 入庫(+)/出庫(-)
       case 'move':   result = moveItem(req); break;                        // 拠点間移動
-      case 'meta':   result = { locations: LOCATIONS }; break;
+      case 'meta':   result = meta(); break;
       default:       return json({ ok: false, error: '不明な操作: ' + req.action });
     }
     return json({ ok: true, data: result });
@@ -59,13 +61,17 @@ function getSheet() {
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(HEADERS);
-    sheet.setFrozenRows(1);
   }
-  // ヘッダーが空なら初期化
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
+  } else {
+    // ヘッダーが現行定義と違えば修正（列構成の変更に追従）
+    const head = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
+    if (head.join('|') !== HEADERS.join('|')) {
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+      sheet.setFrozenRows(1);
+    }
   }
   return sheet;
 }
@@ -85,9 +91,10 @@ function rowToObj(row) {
     カテゴリ:  row[2],
     保管場所:  row[3],
     在庫数量:  Number(row[4]) || 0,
-    単価:      Number(row[5]) || 0,
-    しきい値:  Number(row[6]) || 0,
-    更新日時:  row[7]
+    単位:      row[5] || '個',
+    原価:      Number(row[6]) || 0,
+    しきい値:  Number(row[7]) || 0,
+    更新日時:  row[8]
   };
 }
 
@@ -102,23 +109,27 @@ function findRowIndexById(sheet, id) {
 }
 
 // ===== 各操作 =====
+function meta() {
+  return { locations: LOCATIONS, categories: CATEGORIES, units: UNITS };
+}
+
 function listItems() {
-  return { items: readAll(), locations: LOCATIONS };
+  return { items: readAll(), locations: LOCATIONS, categories: CATEGORIES, units: UNITS };
 }
 
 function addItem(item) {
   const sheet = getSheet();
   const id = Utilities.getUuid();
-  const now = new Date();
   sheet.appendRow([
     id,
     item.商品名 || '',
     item.カテゴリ || '',
     item.保管場所 || '',
     Number(item.在庫数量) || 0,
-    Number(item.単価) || 0,
+    item.単位 || '個',
+    Number(item.原価) || 0,
     Number(item.しきい値) || 0,
-    now
+    new Date()
   ]);
   return { id: id };
 }
@@ -132,7 +143,8 @@ function updateItem(item) {
     item.カテゴリ || '',
     item.保管場所 || '',
     Number(item.在庫数量) || 0,
-    Number(item.単価) || 0,
+    item.単位 || '個',
+    Number(item.原価) || 0,
     Number(item.しきい値) || 0
   ]]);
   sheet.getRange(r, HEADERS.length).setValue(new Date());
@@ -192,7 +204,8 @@ function moveItem(req) {
       カテゴリ: src.カテゴリ,
       保管場所: req.to_location,
       在庫数量: qty,
-      単価: src.単価,
+      単位: src.単位,
+      原価: src.原価,
       しきい値: src.しきい値
     });
   }

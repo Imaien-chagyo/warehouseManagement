@@ -63,17 +63,35 @@
     </div>
   </div>
 
+  <!-- 操作メニュー(カードの⋯) -->
+  <div id="actionModal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="actionItemName">操作</h2>
+      <button id="actAdjust" class="btn ghost block menu-item">± 入出庫（数量を指定）</button>
+      <button id="actEdit" class="btn ghost block menu-item">✏️ 編集</button>
+      <button id="actMove" class="btn ghost block menu-item">🔄 拠点間移動</button>
+      <button class="btn ghost block" data-close style="margin-top:10px">キャンセル</button>
+    </div>
+  </div>
+
   <!-- 追加/編集モーダル -->
   <div id="editModal" class="modal hidden">
     <div class="modal-card">
       <h2 id="editTitle">新規追加</h2>
       <label>商品名<input id="f_name" type="text" /></label>
-      <label>カテゴリ<input id="f_cat" type="text" list="catList" /></label>
-      <datalist id="catList"></datalist>
       <label>保管場所<select id="f_loc"></select></label>
-      <label>在庫数量<input id="f_qty" type="number" inputmode="numeric" value="0" /></label>
-      <label>単価(円)<input id="f_price" type="number" inputmode="numeric" value="0" /></label>
-      <label>在庫切れしきい値<input id="f_threshold" type="number" inputmode="numeric" value="0" /></label>
+      <label>在庫量
+        <div class="qty-row">
+          <input id="f_qty" type="number" inputmode="decimal" value="0" />
+          <select id="f_unit"></select>
+        </div>
+      </label>
+      <details id="moreFields" class="more">
+        <summary>その他の項目（任意）</summary>
+        <label>カテゴリ<select id="f_cat"></select></label>
+        <label>原価(円)<input id="f_price" type="number" inputmode="numeric" value="0" /></label>
+        <label>在庫切れしきい値<input id="f_threshold" type="number" inputmode="numeric" value="0" /></label>
+      </details>
       <div class="modal-actions">
         <button id="deleteBtn" class="btn danger hidden">削除</button>
         <button class="btn ghost" data-close>キャンセル</button>

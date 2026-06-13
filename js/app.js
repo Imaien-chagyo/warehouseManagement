@@ -6,6 +6,8 @@ const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 let STATE = {
   items: [],
   locations: [],
+  categories: [],
+  units: [],
   filterLoc: '',   // '' = すべて
   search: '',
   category: '',
@@ -14,6 +16,7 @@ let STATE = {
   adjustId: null,
   adjustMode: 'in',
   moveId: null,
+  actionId: null,
 };
 
 // ---- API ----
@@ -70,9 +73,12 @@ async function reload() {
 function onLoaded(data) {
   STATE.items = data.items || [];
   STATE.locations = data.locations || [];
+  STATE.categories = data.categories || [];
+  STATE.units = data.units || [];
   buildLocTabs();
   buildCategoryOptions();
   buildLocationSelects();
+  buildUnitSelect();
   render();
 }
 
@@ -91,16 +97,21 @@ function buildLocTabs() {
 }
 
 function buildCategoryOptions() {
-  const cats = [...new Set(STATE.items.map(i => i.カテゴリ).filter(Boolean))].sort();
+  const cats = STATE.categories;
   $('#catFilter').innerHTML = '<option value="">全カテゴリ</option>' +
     cats.map(c => `<option value="${c}" ${c === STATE.category ? 'selected' : ''}>${c}</option>`).join('');
-  $('#catList').innerHTML = cats.map(c => `<option value="${c}">`).join('');
+  $('#f_cat').innerHTML = '<option value="">（未設定）</option>' +
+    cats.map(c => `<option value="${c}">${c}</option>`).join('');
 }
 
 function buildLocationSelects() {
   const opts = STATE.locations.map(l => `<option value="${l}">${l}</option>`).join('');
   $('#f_loc').innerHTML = opts;
   $('#moveTo').innerHTML = opts;
+}
+
+function buildUnitSelect() {
+  $('#f_unit').innerHTML = STATE.units.map(u => `<option value="${u}">${u}</option>`).join('');
 }
 
 // ---- 一覧描画 ----
@@ -141,17 +152,17 @@ function render() {
           ${i.カテゴリ ? `<span class="badge">${esc(i.カテゴリ)}</span>` : ''}
           ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
         </div>
-        <div class="card-sub">単価 ¥${Number(i.単価).toLocaleString()}${i.しきい値 ? ` ・ しきい値 ${i.しきい値}` : ''}</div>
+        <div class="card-sub">原価 ¥${Number(i.原価).toLocaleString()}${i.しきい値 ? ` ・ しきい値 ${i.しきい値}` : ''}</div>
       </div>
       <div class="qty-box">
-        <div class="qty-num ${low ? 'low' : ''}">${i.在庫数量}</div>
+        <div class="qty-num ${low ? 'low' : ''}">${i.在庫数量}<span class="unit">${esc(i.単位)}</span></div>
         <div class="qty-label">在庫</div>
         <div class="stepper">
           <button onclick="quickAdjust('${i.id}', -1)">−</button>
           <button onclick="quickAdjust('${i.id}', 1)">＋</button>
         </div>
       </div>
-      <button class="card-menu" onclick="openCardMenu('${i.id}')">⋯</button>
+      <button class="card-menu" onclick="openAction('${i.id}')">⋯</button>
     </div>`;
   }).join('');
 }
@@ -167,16 +178,12 @@ async function quickAdjust(id, delta) {
 }
 
 // ---- カードメニュー（操作選択） ----
-function openCardMenu(id) {
+function openAction(id) {
   const item = STATE.items.find(x => x.id === id);
   if (!item) return;
-  const choice = prompt(
-    `「${item.商品名}（${item.保管場所}）」\n操作を番号で選択:\n1: 入出庫（数量指定）\n2: 編集\n3: 拠点間移動`,
-    '1'
-  );
-  if (choice === '1') openAdjust(id);
-  else if (choice === '2') openEdit(id);
-  else if (choice === '3') openMove(id);
+  STATE.actionId = id;
+  $('#actionItemName').textContent = `${item.商品名}（${item.保管場所}）`;
+  showModal('actionModal');
 }
 
 // ---- 数量指定の入出庫 ----
@@ -191,7 +198,7 @@ function openAdjust(id) {
 }
 
 async function confirmAdjust() {
-  const qty = Math.abs(parseInt($('#adjustQty').value, 10) || 0);
+  const qty = Math.abs(parseFloat($('#adjustQty').value) || 0);
   if (qty <= 0) { toast('数量を入力してください'); return; }
   const delta = STATE.adjustMode === 'in' ? qty : -qty;
   try {
@@ -210,11 +217,13 @@ function openAdd() {
   $('#editTitle').textContent = '新規追加';
   $('#deleteBtn').classList.add('hidden');
   $('#f_name').value = '';
-  $('#f_cat').value = STATE.category || '';
   $('#f_loc').value = STATE.filterLoc || STATE.locations[0] || '';
   $('#f_qty').value = 0;
+  $('#f_unit').value = STATE.units[0] || '個';
+  $('#f_cat').value = STATE.category || '';
   $('#f_price').value = 0;
   $('#f_threshold').value = 0;
+  $('#moreFields').open = false; // 新規追加時は「その他」を畳んでおく
   showModal('editModal');
 }
 
@@ -225,21 +234,24 @@ function openEdit(id) {
   $('#editTitle').textContent = '編集';
   $('#deleteBtn').classList.remove('hidden');
   $('#f_name').value = i.商品名;
-  $('#f_cat').value = i.カテゴリ;
   $('#f_loc').value = i.保管場所;
   $('#f_qty').value = i.在庫数量;
-  $('#f_price').value = i.単価;
+  $('#f_unit').value = i.単位 || '個';
+  $('#f_cat').value = i.カテゴリ || '';
+  $('#f_price').value = i.原価;
   $('#f_threshold').value = i.しきい値;
+  $('#moreFields').open = true; // 編集時は既存の値が見えるように開いておく
   showModal('editModal');
 }
 
 async function save() {
   const item = {
     商品名: $('#f_name').value.trim(),
-    カテゴリ: $('#f_cat').value.trim(),
     保管場所: $('#f_loc').value,
-    在庫数量: parseInt($('#f_qty').value, 10) || 0,
-    単価: parseInt($('#f_price').value, 10) || 0,
+    在庫数量: parseFloat($('#f_qty').value) || 0,
+    単位: $('#f_unit').value,
+    カテゴリ: $('#f_cat').value,
+    原価: parseInt($('#f_price').value, 10) || 0,
     しきい値: parseInt($('#f_threshold').value, 10) || 0,
   };
   if (!item.商品名) { toast('商品名を入力してください'); return; }
@@ -342,6 +354,11 @@ function init() {
   $('#saveBtn').onclick = save;
   $('#deleteBtn').onclick = removeItem;
   $('#moveOk').onclick = confirmMove;
+
+  // 操作メニュー(カードの⋯)
+  $('#actAdjust').onclick = () => { const id = STATE.actionId; closeModals(); openAdjust(id); };
+  $('#actEdit').onclick   = () => { const id = STATE.actionId; closeModals(); openEdit(id); };
+  $('#actMove').onclick   = () => { const id = STATE.actionId; closeModals(); openMove(id); };
 
   $$('[data-close]').forEach(b => b.onclick = closeModals);
   $$('.modal').forEach(m => m.onclick = (e) => { if (e.target === m) closeModals(); });

@@ -271,6 +271,28 @@ html, body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ===== 在庫量＋単位 ===== */
+.qty-row { display: flex; gap: 8px; margin-top: 4px; }
+.qty-row input { flex: 1; min-width: 0; }
+.qty-row select { width: 90px; flex: 0 0 auto; }
+
+/* ===== その他の項目(折りたたみ) ===== */
+.more { margin-bottom: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.more summary {
+  cursor: pointer;
+  color: var(--green-dark);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 4px 0;
+  list-style: none;
+}
+.more summary::before { content: '▸ '; }
+.more[open] summary::before { content: '▾ '; }
+
+/* ===== 操作メニュー項目 ===== */
+.menu-item { text-align: left; margin-bottom: 8px; padding: 14px 16px; }
+.qty-num .unit { font-size: 0.7rem; font-weight: 600; margin-left: 2px; color: var(--muted); }
+
 .login-card input {
   width: 100%;
   padding: 12px;
