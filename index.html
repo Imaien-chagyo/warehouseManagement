@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#16a34a" />
+  <title>在庫管理</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ログイン画面 -->
+  <div id="login" class="login">
+    <div class="login-card">
+      <h1>在庫管理</h1>
+      <p class="muted">共有パスワードを入力してください</p>
+      <input id="loginPw" type="password" inputmode="text" placeholder="パスワード" autocomplete="current-password" />
+      <button id="loginBtn" class="btn primary block">ログイン</button>
+      <p id="loginError" class="error"></p>
+    </div>
+  </div>
+
+  <!-- アプリ本体 -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <span class="title">在庫管理</span>
+      <button id="reloadBtn" class="icon-btn" title="再読み込み">⟳</button>
+      <button id="logoutBtn" class="icon-btn" title="ログアウト">⏻</button>
+    </header>
+
+    <div class="filters">
+      <div id="locTabs" class="seg"></div>
+      <div class="filter-row">
+        <input id="search" type="search" placeholder="商品名で検索" />
+        <select id="catFilter"><option value="">全カテゴリ</option></select>
+      </div>
+      <label class="alert-toggle">
+        <input id="onlyLow" type="checkbox" /> 在庫切れ間近のみ
+      </label>
+    </div>
+
+    <div id="summary" class="summary"></div>
+    <main id="list" class="list"></main>
+
+    <button id="addBtn" class="fab" title="新規追加">＋</button>
+  </div>
+
+  <!-- 数量調整(入庫/出庫)モーダル -->
+  <div id="adjustModal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="adjustTitle">入出庫</h2>
+      <p id="adjustItemName" class="muted"></p>
+      <div class="seg" id="adjustMode">
+        <button data-mode="in" class="active">入庫 ＋</button>
+        <button data-mode="out">出庫 −</button>
+      </div>
+      <input id="adjustQty" type="number" inputmode="numeric" min="1" value="1" />
+      <div class="modal-actions">
+        <button class="btn ghost" data-close>キャンセル</button>
+        <button id="adjustOk" class="btn primary">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 追加/編集モーダル -->
+  <div id="editModal" class="modal hidden">
+    <div class="modal-card">
+      <h2 id="editTitle">新規追加</h2>
+      <label>商品名<input id="f_name" type="text" /></label>
+      <label>カテゴリ<input id="f_cat" type="text" list="catList" /></label>
+      <datalist id="catList"></datalist>
+      <label>保管場所<select id="f_loc"></select></label>
+      <label>在庫数量<input id="f_qty" type="number" inputmode="numeric" value="0" /></label>
+      <label>単価(円)<input id="f_price" type="number" inputmode="numeric" value="0" /></label>
+      <label>在庫切れしきい値<input id="f_threshold" type="number" inputmode="numeric" value="0" /></label>
+      <div class="modal-actions">
+        <button id="deleteBtn" class="btn danger hidden">削除</button>
+        <button class="btn ghost" data-close>キャンセル</button>
+        <button id="saveBtn" class="btn primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 拠点間移動モーダル -->
+  <div id="moveModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>拠点間移動</h2>
+      <p id="moveItemName" class="muted"></p>
+      <label>移動先<select id="moveTo"></select></label>
+      <label>移動数量<input id="moveQty" type="number" inputmode="numeric" min="1" value="1" /></label>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close>キャンセル</button>
+        <button id="moveOk" class="btn primary">移動する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <div id="loader" class="loader hidden"><div class="spinner"></div></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
