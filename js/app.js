@@ -126,26 +126,66 @@ function buildProductSelect() {
     '<option value="__new__">＋ 新しい商品を登録…</option>';
 }
 
-// 商品プルダウンの選択に応じて、新規入力欄の表示と既定値の自動入力を切り替え
+// 商品プルダウンの選択に応じて、専用登録画面の表示や既定値の自動入力を切り替え
 function onProductChange() {
   const v = $('#f_product').value;
   if (v === '__new__') {
-    $('#lbl_name').classList.remove('hidden');
-    $('#f_name').value = '';
-    $('#moreFields').open = true; // 新商品はカテゴリ等を入力してもらう
+    $('#f_product').value = ''; // 選択は一旦リセット（登録成功後に選び直す）
+    openProductModal();         // 商品名・カテゴリ・単位・標準原価のみの専用画面
   } else if (v) {
-    $('#lbl_name').classList.add('hidden');
     $('#f_name').value = v;
-    const p = STATE.products.find(x => x.商品名 === v);
-    if (p) { // マスタの既定値を自動入力
-      $('#f_cat').value = p.カテゴリ || '';
-      $('#f_unit').value = p.単位 || STATE.units[0] || '個';
-      $('#f_price').value = p.標準原価 || 0;
-    }
+    applyProductDefaults(v);
   } else {
-    $('#lbl_name').classList.add('hidden');
     $('#f_name').value = '';
   }
+}
+
+// マスタの既定値を在庫フォームに反映
+function applyProductDefaults(name) {
+  const p = STATE.products.find(x => x.商品名 === name);
+  if (!p) return;
+  $('#f_cat').value = p.カテゴリ || '';
+  $('#f_unit').value = p.単位 || STATE.units[0] || '個';
+  $('#f_price').value = p.標準原価 || 0;
+}
+
+// ---- 商品マスタ 新規登録（専用画面） ----
+function openProductModal() {
+  $('#p_cat').innerHTML = '<option value="">（未設定）</option>' +
+    STATE.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+  $('#p_unit').innerHTML = STATE.units.map(u => `<option value="${u}">${u}</option>`).join('');
+  $('#p_name').value = '';
+  $('#p_cat').value = '';
+  $('#p_unit').value = STATE.units[0] || '個';
+  $('#p_price').value = 0;
+  showModal('productModal');
+}
+
+function closeProductModal() {
+  $('#productModal').classList.add('hidden');
+}
+
+async function saveProductMaster() {
+  const product = {
+    商品名: $('#p_name').value.trim(),
+    カテゴリ: $('#p_cat').value,
+    単位: $('#p_unit').value,
+    標準原価: parseInt($('#p_price').value, 10) || 0,
+  };
+  if (!product.商品名) { toast('商品名を入力してください'); return; }
+  if (STATE.products.some(p => p.商品名 === product.商品名)) {
+    toast('同じ商品名が既に登録されています'); return;
+  }
+  try {
+    await api('saveProduct', { product });
+    await reloadSilent();        // マスタを取り直してプルダウン更新
+    closeProductModal();
+    // 登録した商品を在庫フォームで選択済みにし、既定値を反映
+    $('#f_product').value = product.商品名;
+    $('#f_name').value = product.商品名;
+    applyProductDefaults(product.商品名);
+    toast('商品マスタに登録しました');
+  } catch (e) { toast(e.message); }
 }
 
 // ---- 一覧描画 ----
@@ -396,6 +436,8 @@ function init() {
   $('#saveBtn').onclick = save;
   $('#deleteBtn').onclick = removeItem;
   $('#moveOk').onclick = confirmMove;
+  $('#productSaveBtn').onclick = saveProductMaster;
+  $('#productCancel').onclick = closeProductModal;
 
   // 操作メニュー(カードの⋯)
   $('#actAdjust').onclick = () => { const id = STATE.actionId; closeModals(); openAdjust(id); };
@@ -404,6 +446,8 @@ function init() {
 
   $$('[data-close]').forEach(b => b.onclick = closeModals);
   $$('.modal').forEach(m => m.onclick = (e) => { if (e.target === m) closeModals(); });
+  // 商品マスタ登録は在庫フォームの上に重ねて開くので、背景クリックでは自分だけ閉じる
+  $('#productModal').onclick = (e) => { if (e.target === $('#productModal')) closeProductModal(); };
 
   // 既にログイン済みなら自動ログイン
   if (getPassword()) tryLogin(getPassword());

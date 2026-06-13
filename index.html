@@ -101,6 +101,21 @@
     </div>
   </div>
 
+  <!-- 商品マスタ 新規登録モーダル -->
+  <div id="productModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>商品マスタに登録</h2>
+      <label>商品名<input id="p_name" type="text" /></label>
+      <label>カテゴリ<select id="p_cat"></select></label>
+      <label>単位<select id="p_unit"></select></label>
+      <label>標準原価(円)<input id="p_price" type="number" inputmode="numeric" value="0" /></label>
+      <div class="modal-actions">
+        <button id="productCancel" class="btn ghost">キャンセル</button>
+        <button id="productSaveBtn" class="btn primary">登録</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 拠点間移動モーダル -->
   <div id="moveModal" class="modal hidden">
     <div class="modal-card">
