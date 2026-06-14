@@ -144,6 +144,7 @@ html, body {
 }
 .badge.loc { background: #e0f2fe; color: #0369a1; }
 .badge.low { background: #fee2e2; color: var(--danger); font-weight: 700; }
+.badge.organic { background: #dcfce7; color: #15803d; font-weight: 700; }
 .card-sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
 
 .qty-box { text-align: center; }
@@ -301,6 +302,17 @@ html, body {
 }
 .more summary::before { content: '▸ '; }
 .more[open] summary::before { content: '▾ '; }
+
+/* ===== チェックボックス付きラベル ===== */
+.modal-card label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.modal-card label.check input { width: auto; margin: 0; }
 
 /* ===== 操作メニュー項目 ===== */
 .menu-item { text-align: left; margin-bottom: 8px; padding: 14px 16px; }

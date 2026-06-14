@@ -9,6 +9,9 @@ let STATE = {
   categories: [],
   units: [],
   products: [],
+  productByName: {},
+  suppliers: [],
+  supplierTarget: null, // 仕入元追加モーダルの戻り先 select id
   filterLoc: '',   // '' = すべて
   search: '',
   category: '',
@@ -77,18 +80,75 @@ function onLoaded(data) {
   STATE.categories = data.categories || [];
   STATE.units = data.units || [];
   STATE.products = data.products || [];
+  STATE.suppliers = data.suppliers || [];
+  STATE.productByName = {};
+  STATE.products.forEach(p => { STATE.productByName[p.商品名] = p; });
   buildLocTabs();
   buildCategoryOptions();
   buildLocationSelects();
   buildUnitSelect();
   buildProductSelect();
-  buildSupplierList();
+  buildSupplierSelects();
   render();
 }
 
-function buildSupplierList() {
-  const suppliers = [...new Set(STATE.products.map(p => p.仕入元).filter(Boolean))].sort();
-  $('#supplierList').innerHTML = suppliers.map(s => `<option value="${esc(s)}">`).join('');
+// 仕入元プルダウン（商品マスタ登録・在庫フォームの両方）を構築
+function supplierOptionsHtml() {
+  return '<option value="">（未設定）</option>' +
+    STATE.suppliers.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('') +
+    '<option value="__new__">＋ 新しい仕入元を登録…</option>';
+}
+
+function buildSupplierSelects() {
+  $('#p_supplier').innerHTML = supplierOptionsHtml();
+  $('#f_supplier').innerHTML = supplierOptionsHtml();
+}
+
+// 候補に無い値でも選択できるよう、必要なら一時的にoptionを足してから選択
+function setSelectValue(sel, val) {
+  val = val || '';
+  if (val && !Array.from(sel.options).some(o => o.value === val)) {
+    const o = document.createElement('option');
+    o.value = val; o.textContent = val;
+    sel.insertBefore(o, sel.lastElementChild); // 「＋新規」の前に差し込む
+  }
+  sel.value = val;
+}
+
+// 仕入元プルダウンで「＋新規」が選ばれたら登録モーダルを開く
+function onSupplierChange(e) {
+  const sel = e.target;
+  if (sel.value === '__new__') {
+    sel.value = '';
+    STATE.supplierTarget = sel.id;
+    openSupplierModal();
+  }
+}
+
+function openSupplierModal() {
+  $('#s_name').value = '';
+  showModal('supplierModal');
+}
+function closeSupplierModal() { $('#supplierModal').classList.add('hidden'); }
+
+async function saveSupplier() {
+  const name = $('#s_name').value.trim();
+  if (!name) { toast('仕入元名を入力してください'); return; }
+  if (STATE.suppliers.includes(name)) { toast('同じ仕入元が既に登録されています'); return; }
+  try {
+    await api('addSupplier', { 仕入元: name });
+    // 入力中のフォームを壊さないよう、全体リロードはせずローカルに反映
+    STATE.suppliers = [...new Set([...STATE.suppliers, name])].sort();
+    const pv = $('#p_supplier').value, fv = $('#f_supplier').value;
+    buildSupplierSelects();
+    setSelectValue($('#p_supplier'), pv);
+    setSelectValue($('#f_supplier'), fv);
+    closeSupplierModal();
+    // 呼び出し元のプルダウンに新しい仕入元を選択済みで戻す
+    const target = STATE.supplierTarget ? $('#' + STATE.supplierTarget) : null;
+    if (target) setSelectValue(target, name);
+    toast('仕入元を登録しました');
+  } catch (e) { toast(e.message); }
 }
 
 // ---- フィルターUI構築 ----
@@ -153,7 +213,7 @@ function applyProductDefaults(name) {
   $('#f_cat').value = p.カテゴリ || '';
   $('#f_unit').value = p.単位 || STATE.units[0] || '個';
   $('#f_price').value = p.標準原価 || 0;
-  $('#f_supplier').value = p.仕入元 || '';
+  setSelectValue($('#f_supplier'), p.仕入元 || '');
 }
 
 // ---- 商品マスタ 新規登録（専用画面） ----
@@ -166,6 +226,7 @@ function openProductModal() {
   $('#p_unit').value = STATE.units[0] || '個';
   $('#p_price').value = 0;
   $('#p_supplier').value = '';
+  $('#p_organic').checked = false;
   showModal('productModal');
 }
 
@@ -179,7 +240,8 @@ async function saveProductMaster() {
     カテゴリ: $('#p_cat').value,
     単位: $('#p_unit').value,
     標準原価: parseInt($('#p_price').value, 10) || 0,
-    仕入元: $('#p_supplier').value.trim(),
+    仕入元: $('#p_supplier').value,
+    有機: $('#p_organic').checked,
   };
   if (!product.商品名) { toast('商品名を入力してください'); return; }
   if (STATE.products.some(p => p.商品名 === product.商品名)) {
@@ -187,9 +249,11 @@ async function saveProductMaster() {
   }
   try {
     await api('saveProduct', { product });
-    await reloadSilent();        // マスタを取り直してプルダウン更新
+    const floc = $('#f_loc').value;   // 入力中の保管場所を保持
+    await reloadSilent();             // マスタを取り直してプルダウン更新
     closeProductModal();
     // 登録した商品を在庫フォームで選択済みにし、既定値を反映
+    $('#f_loc').value = floc;
     $('#f_product').value = product.商品名;
     $('#f_name').value = product.商品名;
     applyProductDefaults(product.商品名);
@@ -209,6 +273,10 @@ function filteredItems() {
 }
 
 function isLow(i) { return Number(i.しきい値) > 0 && Number(i.在庫数量) <= Number(i.しきい値); }
+
+// 商品マスタを参照して有機かどうか判定
+function isOrganic(name) { const p = STATE.productByName[name]; return !!(p && p.有機); }
+function organicBadge(name) { return isOrganic(name) ? '<span class="badge organic">有機</span>' : ''; }
 
 function render() {
   // 「すべて」タブはカテゴリ別の合算サマリー、拠点タブは明細
@@ -239,6 +307,7 @@ function renderDetail() {
         <div class="card-name">${esc(i.商品名)}</div>
         <div class="card-meta">
           <span class="badge loc">${esc(i.保管場所)}</span>
+          ${organicBadge(i.商品名)}
           ${i.カテゴリ ? `<span class="badge">${esc(i.カテゴリ)}</span>` : ''}
           ${i.仕入元 ? `<span class="badge">仕入: ${esc(i.仕入元)}</span>` : ''}
           ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
@@ -318,6 +387,7 @@ function renderSummary() {
         <div class="card-main">
           <div class="card-name">${esc(p.商品名)}</div>
           <div class="card-meta">
+            ${organicBadge(p.商品名)}
             ${p.仕入元 ? `<span class="badge">仕入: ${esc(p.仕入元)}</span>` : ''}
             ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
           </div>
@@ -415,7 +485,7 @@ function openEdit(id) {
   $('#f_qty').value = i.在庫数量;
   $('#f_unit').value = i.単位 || '個';
   $('#f_cat').value = i.カテゴリ || '';
-  $('#f_supplier').value = i.仕入元 || '';
+  setSelectValue($('#f_supplier'), i.仕入元 || '');
   $('#f_price').value = i.原価;
   $('#f_threshold').value = i.しきい値;
   // 編集時はしきい値を手動調整できるよう表示
@@ -432,7 +502,7 @@ async function save() {
     在庫数量: parseFloat($('#f_qty').value) || 0,
     単位: $('#f_unit').value,
     カテゴリ: $('#f_cat').value,
-    仕入元: $('#f_supplier').value.trim(),
+    仕入元: $('#f_supplier').value,
     原価: parseInt($('#f_price').value, 10) || 0,
     しきい値: parseInt($('#f_threshold').value, 10) || 0,
   };
@@ -539,6 +609,10 @@ function init() {
   $('#moveOk').onclick = confirmMove;
   $('#productSaveBtn').onclick = saveProductMaster;
   $('#productCancel').onclick = closeProductModal;
+  $('#f_supplier').onchange = onSupplierChange;
+  $('#p_supplier').onchange = onSupplierChange;
+  $('#supplierSaveBtn').onclick = saveSupplier;
+  $('#supplierCancel').onclick = closeSupplierModal;
 
   // 操作メニュー(カードの⋯)
   $('#actAdjust').onclick = () => { const id = STATE.actionId; closeModals(); openAdjust(id); };
@@ -547,8 +621,9 @@ function init() {
 
   $$('[data-close]').forEach(b => b.onclick = closeModals);
   $$('.modal').forEach(m => m.onclick = (e) => { if (e.target === m) closeModals(); });
-  // 商品マスタ登録は在庫フォームの上に重ねて開くので、背景クリックでは自分だけ閉じる
+  // 商品マスタ・仕入元登録は他モーダルの上に重ねて開くので、背景クリックでは自分だけ閉じる
   $('#productModal').onclick = (e) => { if (e.target === $('#productModal')) closeProductModal(); };
+  $('#supplierModal').onclick = (e) => { if (e.target === $('#supplierModal')) closeSupplierModal(); };
 
   // 既にログイン済みなら自動ログイン
   if (getPassword()) tryLogin(getPassword());

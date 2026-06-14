@@ -90,7 +90,7 @@
       <details id="moreFields" class="more">
         <summary>その他の項目（任意）</summary>
         <label>カテゴリ<select id="f_cat"></select></label>
-        <label>仕入元<input id="f_supplier" type="text" list="supplierList" placeholder="例: 静岡A農園" /></label>
+        <label>仕入元<select id="f_supplier"></select></label>
         <label>原価(円)<input id="f_price" type="number" inputmode="numeric" value="0" /></label>
         <label id="lbl_threshold">在庫切れしきい値<input id="f_threshold" type="number" inputmode="numeric" value="0" /></label>
         <p id="thNote" class="muted hidden">在庫切れ間近は「登録時の数量の15%」を下回ると自動で判定します。</p>
@@ -111,10 +111,23 @@
       <label>カテゴリ<select id="p_cat"></select></label>
       <label>単位<select id="p_unit"></select></label>
       <label>標準原価(円)<input id="p_price" type="number" inputmode="numeric" value="0" /></label>
-      <label>仕入元<input id="p_supplier" type="text" list="supplierList" placeholder="例: 静岡A農園" /></label>
+      <label>仕入元<select id="p_supplier"></select></label>
+      <label class="check"><input id="p_organic" type="checkbox" /> 有機（オーガニック）</label>
       <div class="modal-actions">
         <button id="productCancel" class="btn ghost">キャンセル</button>
         <button id="productSaveBtn" class="btn primary">登録</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 仕入元マスタ 新規登録モーダル -->
+  <div id="supplierModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>仕入元を登録</h2>
+      <label>仕入元名<input id="s_name" type="text" placeholder="例: 静岡A農園" /></label>
+      <div class="modal-actions">
+        <button id="supplierCancel" class="btn ghost">キャンセル</button>
+        <button id="supplierSaveBtn" class="btn primary">登録</button>
       </div>
     </div>
   </div>
@@ -132,8 +145,6 @@
       </div>
     </div>
   </div>
-
-  <datalist id="supplierList"></datalist>
 
   <div id="toast" class="toast hidden"></div>
   <div id="loader" class="loader hidden"><div class="spinner"></div></div>
