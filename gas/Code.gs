@@ -11,7 +11,7 @@
 const SHEET_NAME = '在庫';
 const MASTER_SHEET = '商品マスタ';
 const LOCATIONS = ['学大', '笹塚', '田村', 'Graz'];
-const CATEGORIES = ['抹茶', 'ほうじ茶パウダー', '煎茶', 'ほうじ茶', '和紅茶', '玄米茶'];
+const CATEGORIES = ['抹茶', 'ほうじ茶パウダー', '煎茶', 'ほうじ茶', '和紅茶', '玄米茶', 'その他'];
 const UNITS = ['個', 'g', 'kg', '本', '袋', '箱'];
 const LOW_RATIO = 0.15; // 在庫切れ間近の判定: 登録時数量のこの割合を下回ると間近
 const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', '仕入元', 'しきい値', '更新日時'];
