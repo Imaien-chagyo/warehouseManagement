@@ -277,9 +277,10 @@ function moveItem(req) {
   sheet.getRange(r, 5).setValue(src.在庫数量 - qty);
   sheet.getRange(r, HEADERS.length).setValue(new Date());
 
-  // 移動先の同一商品行を探す（商品名＋保管場所で一致）
+  // 移動先の同一商品行を探す（商品名＋仕入元＋保管場所で一致。仕入元が違えば別在庫）
   const all = readAll();
-  const dest = all.find(o => o.商品名 === src.商品名 && o.保管場所 === req.to_location);
+  const dest = all.find(o =>
+    o.商品名 === src.商品名 && o.仕入元 === src.仕入元 && o.保管場所 === req.to_location);
   if (dest) {
     const dr = findRowIndexById(sheet, dest.id);
     sheet.getRange(dr, 5).setValue(dest.在庫数量 + qty);

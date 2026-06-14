@@ -268,10 +268,10 @@ function renderSummary() {
     return true;
   });
 
-  // 商品名で合算
+  // 商品名＋仕入元で合算（同名でも仕入元が違えば別物として集計）
   const map = {};
   base.forEach(i => {
-    const k = i.商品名;
+    const k = i.商品名 + ' @@ ' + (i.仕入元 || '');
     if (!map[k]) map[k] = { 商品名: i.商品名, カテゴリ: i.カテゴリ || '未分類', 単位: i.単位, 仕入元: i.仕入元 || '', total: 0, th: 0, locs: {} };
     map[k].total += Number(i.在庫数量) || 0;
     map[k].th += Number(i.しきい値) || 0;
