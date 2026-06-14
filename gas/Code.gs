@@ -51,7 +51,7 @@ function doPost(e) {
       case 'move':   result = moveItem(req); break;                        // 拠点間移動
       case 'meta':   result = meta(); break;
       case 'saveProduct':   result = saveProduct(req.product); break;      // 商品マスタ 追加/更新
-      case 'deleteProduct': result = deleteProduct(req.商品名); break;     // 商品マスタ 削除
+      case 'deleteProduct': result = deleteProduct(req.商品名, req.仕入元); break; // 商品マスタ 削除
       case 'addSupplier':   result = addSupplier(req.仕入元); break;       // 仕入元マスタ 追加
       case 'deleteSupplier':result = deleteSupplier(req.仕入元); break;    // 仕入元マスタ 削除
       default:       return json({ ok: false, error: '不明な操作: ' + req.action });
@@ -150,12 +150,13 @@ function readProducts() {
     }));
 }
 
-function findMasterRow(sheet, name) {
+// 商品マスタは「商品名＋仕入元」で1件。同じ品種でも仕入元が違えば別エントリ。
+function findMasterRow(sheet, name, supplier) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return -1;
-  const names = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  for (let i = 0; i < names.length; i++) {
-    if (String(names[i][0]) === String(name)) return i + 2;
+  const rows = sheet.getRange(2, 1, lastRow - 1, MASTER_HEADERS.length).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(name) && String(rows[i][4] || '') === String(supplier || '')) return i + 2;
   }
   return -1;
 }
@@ -164,27 +165,27 @@ function findMasterRow(sheet, name) {
 function ensureProduct(name, cat, unit, cost, supplier, organic) {
   if (!name) return;
   const sheet = getMasterSheet();
-  if (findMasterRow(sheet, name) < 0) {
+  if (findMasterRow(sheet, name, supplier) < 0) {
     sheet.appendRow([name, cat || '', unit || '個', Number(cost) || 0, supplier || '', organic ? true : false]);
   }
   ensureSupplier(supplier);
 }
 
-// マスタの追加/更新（既存なら上書き）
+// マスタの追加/更新（商品名＋仕入元が一致すれば上書き、無ければ追加）
 function saveProduct(p) {
   if (!p || !p.商品名) throw new Error('商品名が必要です');
   const sheet = getMasterSheet();
   const row = [p.商品名, p.カテゴリ || '', p.単位 || '個', Number(p.標準原価) || 0, p.仕入元 || '', p.有機 ? true : false];
-  const r = findMasterRow(sheet, p.商品名);
+  const r = findMasterRow(sheet, p.商品名, p.仕入元);
   if (r < 0) sheet.appendRow(row);
   else sheet.getRange(r, 1, 1, MASTER_HEADERS.length).setValues([row]);
   ensureSupplier(p.仕入元);
-  return { 商品名: p.商品名 };
+  return { 商品名: p.商品名, 仕入元: p.仕入元 || '' };
 }
 
-function deleteProduct(name) {
+function deleteProduct(name, supplier) {
   const sheet = getMasterSheet();
-  const r = findMasterRow(sheet, name);
+  const r = findMasterRow(sheet, name, supplier);
   if (r < 0) throw new Error('対象が見つかりません');
   sheet.deleteRow(r);
   return { 商品名: name };

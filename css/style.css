@@ -60,7 +60,16 @@ html, body {
   padding: 14px 16px;
   padding-top: max(14px, env(safe-area-inset-top));
 }
-.topbar .title { font-weight: 700; font-size: 1.1rem; flex: 1; }
+.topbar .title { font-weight: 700; font-size: 1.1rem; }
+.last-updated {
+  flex: 1;
+  margin-left: 10px;
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, .8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .icon-btn {
   background: rgba(255,255,255,.18);
   border: none;

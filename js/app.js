@@ -9,7 +9,7 @@ let STATE = {
   categories: [],
   units: [],
   products: [],
-  productByName: {},
+  productByKey: {},
   suppliers: [],
   supplierTarget: null, // 仕入元追加モーダルの戻り先 select id
   filterLoc: '',   // '' = すべて
@@ -81,8 +81,9 @@ function onLoaded(data) {
   STATE.units = data.units || [];
   STATE.products = data.products || [];
   STATE.suppliers = data.suppliers || [];
-  STATE.productByName = {};
-  STATE.products.forEach(p => { STATE.productByName[p.商品名] = p; });
+  STATE.productByKey = {};
+  STATE.products.forEach(p => { STATE.productByKey[prodKey(p.商品名, p.仕入元)] = p; });
+  updateLastUpdated();
   buildLocTabs();
   buildCategoryOptions();
   buildLocationSelects();
@@ -183,9 +184,14 @@ function buildUnitSelect() {
   $('#f_unit').innerHTML = STATE.units.map(u => `<option value="${u}">${u}</option>`).join('');
 }
 
+// 商品マスタの識別キー（商品名＋仕入元）
+function prodKey(name, supplier) { return (name || '') + '' + (supplier || ''); }
+
 function buildProductSelect() {
-  const opts = STATE.products
-    .map(p => `<option value="${esc(p.商品名)}">${esc(p.商品名)}</option>`).join('');
+  const opts = STATE.products.map((p, idx) => {
+    const label = p.仕入元 ? `${p.商品名}（${p.仕入元}）` : p.商品名;
+    return `<option value="${idx}">${esc(label)}</option>`;
+  }).join('');
   $('#f_product').innerHTML =
     '<option value="">商品を選択…</option>' +
     opts +
@@ -197,23 +203,34 @@ function onProductChange() {
   const v = $('#f_product').value;
   if (v === '__new__') {
     $('#f_product').value = ''; // 選択は一旦リセット（登録成功後に選び直す）
-    openProductModal();         // 商品名・カテゴリ・単位・標準原価のみの専用画面
-  } else if (v) {
-    $('#f_name').value = v;
-    applyProductDefaults(v);
+    openProductModal();         // 専用の登録画面（商品名・仕入元など）
+  } else if (v !== '') {
+    const p = STATE.products[Number(v)];
+    if (p) { $('#f_name').value = p.商品名; applyProductDefaults(p); }
   } else {
     $('#f_name').value = '';
   }
 }
 
 // マスタの既定値を在庫フォームに反映
-function applyProductDefaults(name) {
-  const p = STATE.products.find(x => x.商品名 === name);
+function applyProductDefaults(p) {
   if (!p) return;
   $('#f_cat').value = p.カテゴリ || '';
   $('#f_unit').value = p.単位 || STATE.units[0] || '個';
   $('#f_price').value = p.標準原価 || 0;
   setSelectValue($('#f_supplier'), p.仕入元 || '');
+}
+
+// タイトル横に表示する「在庫の最終更新日時」を更新
+function updateLastUpdated() {
+  const times = STATE.items.map(i => i.更新日時).filter(Boolean)
+    .map(t => new Date(t)).filter(d => !isNaN(d.getTime()));
+  const el = $('#lastUpdated');
+  if (!el) return;
+  if (!times.length) { el.textContent = ''; return; }
+  const max = new Date(Math.max.apply(null, times));
+  const p = n => String(n).padStart(2, '0');
+  el.textContent = `最終更新 ${max.getFullYear()}/${p(max.getMonth() + 1)}/${p(max.getDate())} ${p(max.getHours())}:${p(max.getMinutes())}`;
 }
 
 // ---- 商品マスタ 新規登録（専用画面） ----
@@ -244,8 +261,8 @@ async function saveProductMaster() {
     有機: $('#p_organic').checked,
   };
   if (!product.商品名) { toast('商品名を入力してください'); return; }
-  if (STATE.products.some(p => p.商品名 === product.商品名)) {
-    toast('同じ商品名が既に登録されています'); return;
+  if (STATE.products.some(p => p.商品名 === product.商品名 && (p.仕入元 || '') === product.仕入元)) {
+    toast('同じ商品名・仕入元が既に登録されています'); return;
   }
   try {
     await api('saveProduct', { product });
@@ -254,9 +271,10 @@ async function saveProductMaster() {
     closeProductModal();
     // 登録した商品を在庫フォームで選択済みにし、既定値を反映
     $('#f_loc').value = floc;
-    $('#f_product').value = product.商品名;
+    const idx = STATE.products.findIndex(p => p.商品名 === product.商品名 && (p.仕入元 || '') === product.仕入元);
+    if (idx >= 0) $('#f_product').value = String(idx);
     $('#f_name').value = product.商品名;
-    applyProductDefaults(product.商品名);
+    applyProductDefaults(STATE.products[idx] || product);
     toast('商品マスタに登録しました');
   } catch (e) { toast(e.message); }
 }
@@ -274,9 +292,9 @@ function filteredItems() {
 
 function isLow(i) { return Number(i.しきい値) > 0 && Number(i.在庫数量) <= Number(i.しきい値); }
 
-// 商品マスタを参照して有機かどうか判定
-function isOrganic(name) { const p = STATE.productByName[name]; return !!(p && p.有機); }
-function organicBadge(name) { return isOrganic(name) ? '<span class="badge organic">有機</span>' : ''; }
+// 商品マスタ（商品名＋仕入元）を参照して有機かどうか判定
+function isOrganic(name, supplier) { const p = STATE.productByKey[prodKey(name, supplier)]; return !!(p && p.有機); }
+function organicBadge(name, supplier) { return isOrganic(name, supplier) ? '<span class="badge organic">有機</span>' : ''; }
 
 function render() {
   // 「すべて」タブはカテゴリ別の合算サマリー、拠点タブは明細
@@ -307,7 +325,7 @@ function renderDetail() {
         <div class="card-name">${esc(i.商品名)}</div>
         <div class="card-meta">
           <span class="badge loc">${esc(i.保管場所)}</span>
-          ${organicBadge(i.商品名)}
+          ${organicBadge(i.商品名, i.仕入元)}
           ${i.カテゴリ ? `<span class="badge">${esc(i.カテゴリ)}</span>` : ''}
           ${i.仕入元 ? `<span class="badge">仕入: ${esc(i.仕入元)}</span>` : ''}
           ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
@@ -387,7 +405,7 @@ function renderSummary() {
         <div class="card-main">
           <div class="card-name">${esc(p.商品名)}</div>
           <div class="card-meta">
-            ${organicBadge(p.商品名)}
+            ${organicBadge(p.商品名, p.仕入元)}
             ${p.仕入元 ? `<span class="badge">仕入: ${esc(p.仕入元)}</span>` : ''}
             ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
           </div>
