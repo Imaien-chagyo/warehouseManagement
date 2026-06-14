@@ -82,7 +82,13 @@ function onLoaded(data) {
   buildLocationSelects();
   buildUnitSelect();
   buildProductSelect();
+  buildSupplierList();
   render();
+}
+
+function buildSupplierList() {
+  const suppliers = [...new Set(STATE.products.map(p => p.仕入元).filter(Boolean))].sort();
+  $('#supplierList').innerHTML = suppliers.map(s => `<option value="${esc(s)}">`).join('');
 }
 
 // ---- フィルターUI構築 ----
@@ -147,6 +153,7 @@ function applyProductDefaults(name) {
   $('#f_cat').value = p.カテゴリ || '';
   $('#f_unit').value = p.単位 || STATE.units[0] || '個';
   $('#f_price').value = p.標準原価 || 0;
+  $('#f_supplier').value = p.仕入元 || '';
 }
 
 // ---- 商品マスタ 新規登録（専用画面） ----
@@ -158,6 +165,7 @@ function openProductModal() {
   $('#p_cat').value = '';
   $('#p_unit').value = STATE.units[0] || '個';
   $('#p_price').value = 0;
+  $('#p_supplier').value = '';
   showModal('productModal');
 }
 
@@ -171,6 +179,7 @@ async function saveProductMaster() {
     カテゴリ: $('#p_cat').value,
     単位: $('#p_unit').value,
     標準原価: parseInt($('#p_price').value, 10) || 0,
+    仕入元: $('#p_supplier').value.trim(),
   };
   if (!product.商品名) { toast('商品名を入力してください'); return; }
   if (STATE.products.some(p => p.商品名 === product.商品名)) {
@@ -231,6 +240,7 @@ function renderDetail() {
         <div class="card-meta">
           <span class="badge loc">${esc(i.保管場所)}</span>
           ${i.カテゴリ ? `<span class="badge">${esc(i.カテゴリ)}</span>` : ''}
+          ${i.仕入元 ? `<span class="badge">仕入: ${esc(i.仕入元)}</span>` : ''}
           ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
         </div>
         <div class="card-sub">原価 ¥${Number(i.原価).toLocaleString()}${i.しきい値 ? ` ・ しきい値 ${i.しきい値}` : ''}</div>
@@ -262,7 +272,7 @@ function renderSummary() {
   const map = {};
   base.forEach(i => {
     const k = i.商品名;
-    if (!map[k]) map[k] = { 商品名: i.商品名, カテゴリ: i.カテゴリ || '未分類', 単位: i.単位, total: 0, th: 0, locs: {} };
+    if (!map[k]) map[k] = { 商品名: i.商品名, カテゴリ: i.カテゴリ || '未分類', 単位: i.単位, 仕入元: i.仕入元 || '', total: 0, th: 0, locs: {} };
     map[k].total += Number(i.在庫数量) || 0;
     map[k].th += Number(i.しきい値) || 0;
     map[k].locs[i.保管場所] = (map[k].locs[i.保管場所] || 0) + (Number(i.在庫数量) || 0);
@@ -308,6 +318,7 @@ function renderSummary() {
         <div class="card-main">
           <div class="card-name">${esc(p.商品名)}</div>
           <div class="card-meta">
+            ${p.仕入元 ? `<span class="badge">仕入: ${esc(p.仕入元)}</span>` : ''}
             ${low ? '<span class="badge low">在庫切れ間近</span>' : ''}
           </div>
           <div class="card-sub"><span class="loc-break">${breakdown || '在庫なし'}</span></div>
@@ -380,6 +391,7 @@ function openAdd() {
   $('#f_qty').value = 0;
   $('#f_unit').value = STATE.units[0] || '個';
   $('#f_cat').value = STATE.category || '';
+  $('#f_supplier').value = '';
   $('#f_price').value = 0;
   $('#f_threshold').value = 0;
   // 新規追加はしきい値を自動(15%)にするので入力欄は隠し、注記を出す
@@ -403,6 +415,7 @@ function openEdit(id) {
   $('#f_qty').value = i.在庫数量;
   $('#f_unit').value = i.単位 || '個';
   $('#f_cat').value = i.カテゴリ || '';
+  $('#f_supplier').value = i.仕入元 || '';
   $('#f_price').value = i.原価;
   $('#f_threshold').value = i.しきい値;
   // 編集時はしきい値を手動調整できるよう表示
@@ -419,6 +432,7 @@ async function save() {
     在庫数量: parseFloat($('#f_qty').value) || 0,
     単位: $('#f_unit').value,
     カテゴリ: $('#f_cat').value,
+    仕入元: $('#f_supplier').value.trim(),
     原価: parseInt($('#f_price').value, 10) || 0,
     しきい値: parseInt($('#f_threshold').value, 10) || 0,
   };

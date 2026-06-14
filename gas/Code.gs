@@ -14,8 +14,8 @@ const LOCATIONS = ['学大', '笹塚', '田村', 'Graz'];
 const CATEGORIES = ['抹茶', 'ほうじ茶パウダー', '煎茶', 'ほうじ茶', '和紅茶', '玄米茶'];
 const UNITS = ['個', 'g', 'kg', '本', '袋', '箱'];
 const LOW_RATIO = 0.15; // 在庫切れ間近の判定: 登録時数量のこの割合を下回ると間近
-const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', 'しきい値', '更新日時'];
-const MASTER_HEADERS = ['商品名', 'カテゴリ', '単位', '標準原価'];
+const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', '仕入元', 'しきい値', '更新日時'];
+const MASTER_HEADERS = ['商品名', 'カテゴリ', '単位', '標準原価', '仕入元'];
 
 // 共有パスワード。デプロイ前に必ず変更してください。
 // （ログイン画面で入力した値とここが一致すれば操作OK）
@@ -98,8 +98,9 @@ function rowToObj(row) {
     在庫数量:  Number(row[4]) || 0,
     単位:      row[5] || '個',
     原価:      Number(row[6]) || 0,
-    しきい値:  Number(row[7]) || 0,
-    更新日時:  row[8]
+    仕入元:    row[7] || '',
+    しきい値:  Number(row[8]) || 0,
+    更新日時:  row[9]
   };
 }
 
@@ -139,7 +140,7 @@ function readProducts() {
   if (lastRow < 2) return [];
   return sheet.getRange(2, 1, lastRow - 1, MASTER_HEADERS.length).getValues()
     .filter(r => r[0])
-    .map(r => ({ 商品名: r[0], カテゴリ: r[1], 単位: r[2] || '個', 標準原価: Number(r[3]) || 0 }));
+    .map(r => ({ 商品名: r[0], カテゴリ: r[1], 単位: r[2] || '個', 標準原価: Number(r[3]) || 0, 仕入元: r[4] || '' }));
 }
 
 function findMasterRow(sheet, name) {
@@ -153,11 +154,11 @@ function findMasterRow(sheet, name) {
 }
 
 // 在庫追加時に呼ぶ。マスタに無ければ既定値付きで登録（既存は変更しない）。
-function ensureProduct(name, cat, unit, cost) {
+function ensureProduct(name, cat, unit, cost, supplier) {
   if (!name) return;
   const sheet = getMasterSheet();
   if (findMasterRow(sheet, name) < 0) {
-    sheet.appendRow([name, cat || '', unit || '個', Number(cost) || 0]);
+    sheet.appendRow([name, cat || '', unit || '個', Number(cost) || 0, supplier || '']);
   }
 }
 
@@ -165,7 +166,7 @@ function ensureProduct(name, cat, unit, cost) {
 function saveProduct(p) {
   if (!p || !p.商品名) throw new Error('商品名が必要です');
   const sheet = getMasterSheet();
-  const row = [p.商品名, p.カテゴリ || '', p.単位 || '個', Number(p.標準原価) || 0];
+  const row = [p.商品名, p.カテゴリ || '', p.単位 || '個', Number(p.標準原価) || 0, p.仕入元 || ''];
   const r = findMasterRow(sheet, p.商品名);
   if (r < 0) sheet.appendRow(row);
   else sheet.getRange(r, 1, 1, MASTER_HEADERS.length).setValues([row]);
@@ -210,10 +211,11 @@ function addItem(item) {
     qty,
     item.単位 || '個',
     Number(item.原価) || 0,
+    item.仕入元 || '',
     threshold,
     new Date()
   ]);
-  ensureProduct(item.商品名, item.カテゴリ, item.単位, item.原価); // マスタに無ければ登録
+  ensureProduct(item.商品名, item.カテゴリ, item.単位, item.原価, item.仕入元); // マスタに無ければ登録
   return { id: id };
 }
 
@@ -228,6 +230,7 @@ function updateItem(item) {
     Number(item.在庫数量) || 0,
     item.単位 || '個',
     Number(item.原価) || 0,
+    item.仕入元 || '',
     Number(item.しきい値) || 0
   ]]);
   sheet.getRange(r, HEADERS.length).setValue(new Date());
@@ -289,6 +292,7 @@ function moveItem(req) {
       在庫数量: qty,
       単位: src.単位,
       原価: src.原価,
+      仕入元: src.仕入元,
       しきい値: src.しきい値
     });
   }
