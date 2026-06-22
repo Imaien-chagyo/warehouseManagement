@@ -159,6 +159,7 @@ html, body {
 .qty-box { text-align: center; }
 .qty-num { font-size: 1.5rem; font-weight: 800; line-height: 1; min-width: 44px; }
 .qty-num.low { color: var(--danger); }
+.qty-num.summary-total { font-size: 1.15rem; max-width: 130px; text-align: right; line-height: 1.2; word-break: break-word; }
 .qty-label { font-size: 0.68rem; color: var(--muted); }
 .stepper { display: flex; gap: 6px; margin-top: 6px; }
 .stepper button {
@@ -238,6 +239,9 @@ html, body {
   padding: 22px 18px;
   padding-bottom: max(22px, env(safe-area-inset-bottom));
   animation: slideUp .18s ease;
+  max-height: 90dvh;        /* 画面より長くなったらカード内でスクロール */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 @keyframes slideUp { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
 .modal-card h2 { margin: 0 0 12px; font-size: 1.15rem; }
@@ -325,6 +329,7 @@ html, body {
 
 /* ===== 操作メニュー項目 ===== */
 .menu-item { text-align: left; margin-bottom: 8px; padding: 14px 16px; }
+.menu-item.danger-item { color: var(--danger); }
 .qty-num .unit { font-size: 0.7rem; font-weight: 600; margin-left: 2px; color: var(--muted); }
 
 .login-card input {

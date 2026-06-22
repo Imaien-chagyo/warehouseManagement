@@ -296,6 +296,25 @@ function isLow(i) { return Number(i.しきい値) > 0 && Number(i.在庫数量) 
 function isOrganic(name, supplier) { const p = STATE.productByKey[prodKey(name, supplier)]; return !!(p && p.有機); }
 function organicBadge(name, supplier) { return isOrganic(name, supplier) ? '<span class="badge organic">有機</span>' : ''; }
 
+// ---- 単位の換算（合算用）----
+// g と kg は同じ「重さ」系として g に換算して合算。個・本・袋・箱はそれぞれ別系統。
+const WEIGHT_TO_G = { g: 1, kg: 1000 };
+function unitFamily(unit) { return WEIGHT_TO_G[unit] ? 'weight' : (unit || '個'); }
+function toBaseQty(qty, unit) { const n = Number(qty) || 0; return WEIGHT_TO_G[unit] ? n * WEIGHT_TO_G[unit] : n; }
+function addToFamily(fam, qty, unit) { const f = unitFamily(unit); fam[f] = (fam[f] || 0) + toBaseQty(qty, unit); }
+function roundQty(n) { return Math.round(n * 100) / 100; }
+// 系統ごとの合計を「2.8kg ＋ 5個」のような文字列に整形
+function fmtFamily(fam) {
+  const parts = Object.keys(fam).map(f => {
+    if (f === 'weight') { const g = fam[f]; return g >= 1000 ? `${roundQty(g / 1000)}kg` : `${roundQty(g)}g`; }
+    return `${roundQty(fam[f])}${f}`;
+  });
+  return parts.length ? parts.join(' ＋ ') : '0';
+}
+function isLowFamily(fam, famTh) {
+  return Object.keys(famTh).some(f => famTh[f] > 0 && (fam[f] || 0) <= famTh[f]);
+}
+
 function render() {
   // 「すべて」タブはカテゴリ別の合算サマリー、拠点タブは明細
   if (STATE.filterLoc) renderDetail();
@@ -355,16 +374,17 @@ function renderSummary() {
     return true;
   });
 
-  // 商品名＋仕入元で合算（同名でも仕入元が違えば別物として集計）
+  // 商品名＋仕入元で合算（同名でも仕入元が違えば別物として集計）。単位はg/kgを換算。
   const map = {};
   base.forEach(i => {
-    const k = i.商品名 + ' @@ ' + (i.仕入元 || '');
-    if (!map[k]) map[k] = { 商品名: i.商品名, カテゴリ: i.カテゴリ || '未分類', 単位: i.単位, 仕入元: i.仕入元 || '', total: 0, th: 0, locs: {} };
-    map[k].total += Number(i.在庫数量) || 0;
-    map[k].th += Number(i.しきい値) || 0;
-    map[k].locs[i.保管場所] = (map[k].locs[i.保管場所] || 0) + (Number(i.在庫数量) || 0);
+    const k = i.商品名 + '|' + (i.仕入元 || '');
+    if (!map[k]) map[k] = { 商品名: i.商品名, カテゴリ: i.カテゴリ || '未分類', 仕入元: i.仕入元 || '', fam: {}, famTh: {}, locFam: {} };
+    addToFamily(map[k].fam, i.在庫数量, i.単位);
+    if (Number(i.しきい値) > 0) addToFamily(map[k].famTh, i.しきい値, i.単位);
+    map[k].locFam[i.保管場所] = map[k].locFam[i.保管場所] || {};
+    addToFamily(map[k].locFam[i.保管場所], i.在庫数量, i.単位);
   });
-  const lowOf = p => p.th > 0 && p.total <= p.th;
+  const lowOf = p => isLowFamily(p.fam, p.famTh);
   let products = Object.values(map);
   if (STATE.onlyLow) products = products.filter(lowOf);
 
@@ -390,16 +410,15 @@ function renderSummary() {
   let html = '';
   cats.forEach(cat => {
     const ps = groups[cat].sort((a, b) => a.商品名.localeCompare(b.商品名, 'ja'));
-    // カテゴリ内で単位が揃っていれば合計値を見出しに出す
-    const units = [...new Set(ps.map(p => p.単位))];
-    const catTotal = units.length === 1
-      ? `計 ${ps.reduce((s, p) => s + p.total, 0)} ${units[0]}` : '';
-    html += `<div class="cat-header"><span>${esc(cat)}</span><span class="cat-total">${catTotal}</span></div>`;
+    // カテゴリ合計（単位系統ごとに集計してg/kgは換算）
+    const catFam = {};
+    ps.forEach(p => Object.keys(p.fam).forEach(f => { catFam[f] = (catFam[f] || 0) + p.fam[f]; }));
+    html += `<div class="cat-header"><span>${esc(cat)}</span><span class="cat-total">計 ${esc(fmtFamily(catFam))}</span></div>`;
     html += ps.map(p => {
       const low = lowOf(p);
       const breakdown = STATE.locations
-        .filter(l => p.locs[l] != null)
-        .map(l => `${esc(l)} ${p.locs[l]}`).join('・');
+        .filter(l => p.locFam[l])
+        .map(l => `${esc(l)} ${esc(fmtFamily(p.locFam[l]))}`).join('・');
       return `
       <div class="card ${low ? 'low' : ''}">
         <div class="card-main">
@@ -412,7 +431,7 @@ function renderSummary() {
           <div class="card-sub"><span class="loc-break">${breakdown || '在庫なし'}</span></div>
         </div>
         <div class="qty-box">
-          <div class="qty-num ${low ? 'low' : ''}">${p.total}<span class="unit">${esc(p.単位)}</span></div>
+          <div class="qty-num summary-total ${low ? 'low' : ''}">${esc(fmtFamily(p.fam))}</div>
           <div class="qty-label">合計</div>
         </div>
       </div>`;
@@ -540,10 +559,14 @@ async function save() {
 }
 
 async function removeItem() {
-  if (!STATE.editingId) return;
-  if (!confirm('この商品を削除しますか？')) return;
+  deleteItemById(STATE.editingId);
+}
+
+async function deleteItemById(id, name) {
+  if (!id) return;
+  if (!confirm((name ? `「${name}」を` : 'この在庫を') + '削除しますか？')) return;
   try {
-    await api('delete', { id: STATE.editingId });
+    await api('delete', { id });
     closeModals();
     await reloadSilent();
     toast('削除しました');
@@ -636,6 +659,12 @@ function init() {
   $('#actAdjust').onclick = () => { const id = STATE.actionId; closeModals(); openAdjust(id); };
   $('#actEdit').onclick   = () => { const id = STATE.actionId; closeModals(); openEdit(id); };
   $('#actMove').onclick   = () => { const id = STATE.actionId; closeModals(); openMove(id); };
+  $('#actDelete').onclick = () => {
+    const id = STATE.actionId;
+    const it = STATE.items.find(x => x.id === id);
+    closeModals();
+    deleteItemById(id, it && it.商品名);
+  };
 
   $$('[data-close]').forEach(b => b.onclick = closeModals);
   $$('.modal').forEach(m => m.onclick = (e) => { if (e.target === m) closeModals(); });
