@@ -18,6 +18,8 @@ const LOW_RATIO = 0.15; // 在庫切れ間近の判定: 登録時数量のこの
 const HEADERS = ['id', '商品名', 'カテゴリ', '保管場所', '在庫数量', '単位', '原価', '仕入元', 'しきい値', '更新日時'];
 const MASTER_HEADERS = ['商品名', 'カテゴリ', '単位', '標準原価', '仕入元', '有機'];
 const SUPPLIER_HEADERS = ['仕入元'];
+const HISTORY_SHEET = '変更履歴';
+const HISTORY_HEADERS = ['日時', '操作', '商品名', '保管場所', '変更前', '変更後', 'メモ'];
 
 // 共有パスワード。デプロイ前に必ず変更してください。
 // （ログイン画面で入力した値とここが一致すれば操作OK）
@@ -54,6 +56,7 @@ function doPost(e) {
       case 'deleteProduct': result = deleteProduct(req.商品名, req.仕入元); break; // 商品マスタ 削除
       case 'addSupplier':   result = addSupplier(req.仕入元); break;       // 仕入元マスタ 追加
       case 'deleteSupplier':result = deleteSupplier(req.仕入元); break;    // 仕入元マスタ 削除
+      case 'history':       result = getHistory(); break;                  // 変更履歴取得
       default:       return json({ ok: false, error: '不明な操作: ' + req.action });
     }
     return json({ ok: true, data: result });
@@ -284,6 +287,7 @@ function addItem(item) {
   ]);
   ensureProduct(item.商品名, item.カテゴリ, item.単位, item.原価, item.仕入元, item.有機); // マスタに無ければ登録
   ensureSupplier(item.仕入元); // 仕入元マスタに取り込み
+  logHistory('追加', item.商品名, item.保管場所, '', qty, '');
   return { id: id };
 }
 
@@ -291,6 +295,7 @@ function updateItem(item) {
   const sheet = getSheet();
   const r = findRowIndexById(sheet, item.id);
   if (r < 0) throw new Error('対象が見つかりません');
+  const old = rowToObj(sheet.getRange(r, 1, 1, HEADERS.length).getValues()[0]);
   sheet.getRange(r, 2, 1, HEADERS.length - 2).setValues([[
     item.商品名 || '',
     item.カテゴリ || '',
@@ -302,6 +307,8 @@ function updateItem(item) {
     Number(item.しきい値) || 0
   ]]);
   sheet.getRange(r, HEADERS.length).setValue(new Date());
+  const memo = old.在庫数量 !== Number(item.在庫数量) ? `数量 ${old.在庫数量}→${item.在庫数量}` : '';
+  logHistory('編集', item.商品名, item.保管場所, old.在庫数量, Number(item.在庫数量) || 0, memo);
   return { id: item.id };
 }
 
@@ -309,7 +316,9 @@ function deleteItem(id) {
   const sheet = getSheet();
   const r = findRowIndexById(sheet, id);
   if (r < 0) throw new Error('対象が見つかりません');
+  const old = rowToObj(sheet.getRange(r, 1, 1, HEADERS.length).getValues()[0]);
   sheet.deleteRow(r);
+  logHistory('削除', old.商品名, old.保管場所, old.在庫数量, '', '');
   return { id: id };
 }
 
@@ -322,6 +331,8 @@ function adjustQty(id, delta) {
   if (next < 0) throw new Error('在庫数が0未満になります');
   sheet.getRange(r, 5).setValue(next);
   sheet.getRange(r, HEADERS.length).setValue(new Date());
+  const item = rowToObj(sheet.getRange(r, 1, 1, HEADERS.length).getValues()[0]);
+  logHistory(delta > 0 ? '入庫' : '出庫', item.商品名, item.保管場所, cur, next, `${delta > 0 ? '+' : ''}${delta}${item.単位}`);
   return { id: id, 在庫数量: next };
 }
 
@@ -365,7 +376,40 @@ function moveItem(req) {
       しきい値: src.しきい値
     });
   }
+  logHistory('移動', src.商品名, `${src.保管場所}→${req.to_location}`, src.在庫数量, src.在庫数量 - qty, `${qty}${src.単位}を${req.to_location}へ`);
   return { ok: true };
+}
+
+// ===== 変更履歴 =====
+function getHistorySheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(HISTORY_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(HISTORY_SHEET);
+    sheet.appendRow(HISTORY_HEADERS);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function logHistory(op, name, location, before, after, memo) {
+  getHistorySheet().appendRow([new Date(), op, name || '', location || '', before !== undefined ? before : '', after !== undefined ? after : '', memo || '']);
+}
+
+function getHistory() {
+  const sheet = getHistorySheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, HISTORY_HEADERS.length).getValues();
+  return values.reverse().map(r => ({
+    日時: r[0] ? Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') : '',
+    操作: r[1],
+    商品名: r[2],
+    保管場所: r[3],
+    変更前: r[4],
+    変更後: r[5],
+    メモ: r[6]
+  }));
 }
 
 // ===== ユーティリティ =====

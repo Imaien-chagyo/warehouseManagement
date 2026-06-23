@@ -27,6 +27,7 @@
       <span class="title">在庫管理</span>
       <span id="lastUpdated" class="last-updated"></span>
       <button id="reloadBtn" class="icon-btn" title="再読み込み">⟳</button>
+      <button id="historyBtn" class="icon-btn" title="変更履歴">📋</button>
       <button id="logoutBtn" class="icon-btn" title="ログアウト">⏻</button>
     </header>
 
@@ -144,6 +145,17 @@
       <div class="modal-actions">
         <button class="btn ghost" data-close>キャンセル</button>
         <button id="moveOk" class="btn primary">移動する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 変更履歴モーダル -->
+  <div id="historyModal" class="modal hidden">
+    <div class="modal-card" style="max-width:480px;width:100%">
+      <h2>変更履歴</h2>
+      <div id="historyList" style="max-height:60vh;overflow-y:auto;margin:10px 0"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close>閉じる</button>
       </div>
     </div>
   </div>

@@ -604,6 +604,32 @@ async function reloadSilent() {
   onLoaded(data);
 }
 
+// ---- 変更履歴 ----
+async function openHistory() {
+  $('#historyList').innerHTML = '<div class="muted" style="padding:12px">読み込み中…</div>';
+  showModal('historyModal');
+  try {
+    const logs = await api('history');
+    if (!logs || !logs.length) {
+      $('#historyList').innerHTML = '<div class="muted" style="padding:12px">履歴がありません</div>';
+      return;
+    }
+    const opColor = { '追加': '#16a34a', '削除': '#dc2626', '入庫': '#2563eb', '出庫': '#d97706', '編集': '#7c3aed', '移動': '#0891b2' };
+    $('#historyList').innerHTML = logs.map(h => `
+      <div style="padding:10px 4px;border-bottom:1px solid var(--border,#e5e7eb)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="background:${opColor[h.操作] || '#6b7280'};color:#fff;border-radius:4px;padding:1px 7px;font-size:12px;white-space:nowrap">${esc(h.操作)}</span>
+          <span style="font-weight:600">${esc(h.商品名)}</span>
+          ${h.保管場所 ? `<span class="badge loc" style="font-size:11px">${esc(h.保管場所)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:#6b7280;display:flex;gap:12px;flex-wrap:wrap">
+          <span>${esc(h.日時)}</span>
+          ${h.メモ ? `<span>${esc(h.メモ)}</span>` : (h.変更前 !== '' || h.変更後 !== '') ? `<span>${esc(String(h.変更前))} → ${esc(String(h.変更後))}</span>` : ''}
+        </div>
+      </div>`).join('');
+  } catch (e) { toast(e.message); }
+}
+
 // ---- UIヘルパー ----
 function showModal(id) { $('#' + id).classList.remove('hidden'); }
 function closeModals() { $$('.modal').forEach(m => m.classList.add('hidden')); }
@@ -631,6 +657,7 @@ function init() {
   $('#loginPw').onkeydown = (e) => { if (e.key === 'Enter') $('#loginBtn').click(); };
 
   $('#reloadBtn').onclick = reload;
+  $('#historyBtn').onclick = openHistory;
   $('#logoutBtn').onclick = logout;
   $('#addBtn').onclick = openAdd;
 
