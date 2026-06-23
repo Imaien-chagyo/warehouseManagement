@@ -620,6 +620,7 @@ async function openHistory() {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <span style="background:${opColor[h.操作] || '#6b7280'};color:#fff;border-radius:4px;padding:1px 7px;font-size:12px;white-space:nowrap">${esc(h.操作)}</span>
           <span style="font-weight:600">${esc(h.商品名)}</span>
+          ${h.仕入元 ? `<span class="badge" style="font-size:11px">仕入: ${esc(h.仕入元)}</span>` : ''}
           ${h.保管場所 ? `<span class="badge loc" style="font-size:11px">${esc(h.保管場所)}</span>` : ''}
         </div>
         <div style="font-size:12px;color:#6b7280;display:flex;gap:12px;flex-wrap:wrap">
