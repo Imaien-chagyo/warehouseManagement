@@ -562,15 +562,18 @@ async function removeItem() {
   deleteItemById(STATE.editingId);
 }
 
-async function deleteItemById(id, name) {
+function deleteItemById(id, name) {
   if (!id) return;
-  if (!confirm((name ? `「${name}」を` : 'この在庫を') + '削除しますか？')) return;
-  try {
-    await api('delete', { id });
-    closeModals();
-    await reloadSilent();
-    toast('削除しました');
-  } catch (e) { toast(e.message); }
+  $('#deleteConfirmMsg').textContent = (name ? `「${name}」を` : 'この在庫を') + '削除しますか？';
+  $('#deleteConfirmOk').onclick = async () => {
+    try {
+      await api('delete', { id });
+      closeModals();
+      await reloadSilent();
+      toast('削除しました');
+    } catch (e) { toast(e.message); }
+  };
+  showModal('deleteConfirmModal');
 }
 
 // ---- 拠点間移動 ----

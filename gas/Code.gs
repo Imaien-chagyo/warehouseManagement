@@ -401,16 +401,20 @@ function getHistory() {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   const values = sheet.getRange(2, 1, lastRow - 1, HISTORY_HEADERS.length).getValues();
-  return values.reverse().map(r => ({
-    日時: r[0] ? Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') : '',
-    操作: r[1],
-    商品名: r[2],
-    仕入元: r[3],
-    保管場所: r[4],
-    変更前: r[5],
-    変更後: r[6],
-    メモ: r[7]
-  }));
+  return values.reverse().map(r => {
+    // 仕入元カラム追加前の旧データ判定: r[3]が拠点名の場合は旧フォーマット
+    const isOld = LOCATIONS.indexOf(String(r[3])) >= 0 || String(r[3]).indexOf('→') >= 0;
+    return {
+      日時: r[0] ? Utilities.formatDate(new Date(r[0]), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') : '',
+      操作: r[1],
+      商品名: r[2],
+      仕入元: isOld ? '' : String(r[3] || ''),
+      保管場所: isOld ? String(r[3] || '') : String(r[4] || ''),
+      変更前: isOld ? r[4] : r[5],
+      変更後: isOld ? r[5] : r[6],
+      メモ: isOld ? String(r[6] || '') : String(r[7] || '')
+    };
+  });
 }
 
 // ===== ユーティリティ =====
